@@ -91,14 +91,28 @@ def make_experiment(
     *,
     cohort_scoped: bool = True,
     base_ms: int = 0,
+    skills: tuple[str, ...] = SKILLS,
+    cohort_labels: tuple[str, str] = ("tutor-dawn", "tutor-dusk"),
 ) -> Experiment:
-    """Build one fresh experiment: skills+recos first, outcomes correlated."""
+    """Build one fresh experiment: skills+recos first, outcomes correlated.
+
+    Two structural invariants are fixed whatever the story says (the loop's
+    math needs them): two skills — the first is the "gap" class, the second
+    the "explore" class — and mirrored verdict postures per cohort slot
+    (LEARNERS order). Names are story material: the app hands the defaults,
+    or the names an AI invented for this run.
+    """
+    reco_class_of = dict(zip(skills, ("gap", "explore"), strict=False))
     cohort_prefix = f"{run_id}-" if cohort_scoped else ""
-    cohort_of = {learner: f"{cohort_prefix}{cohort}" for learner, cohort in LEARNERS}
+    dawn_label, dusk_label = cohort_labels
+    cohort_of = {
+        learner: f"{cohort_prefix}{dawn_label if slot == 'tutor-dawn' else dusk_label}"
+        for learner, slot in LEARNERS
+    }
 
     events: list[dict[str, Any]] = []
-    for ms, (learner, _cohort) in enumerate(LEARNERS):
-        for skill in SKILLS:
+    for ms, (learner, _slot) in enumerate(LEARNERS):
+        for skill in skills:
             events.append(
                 envelope(
                     f"skill-{run_id}-{learner}-{skill}",
@@ -109,8 +123,8 @@ def make_experiment(
                 )
             )
     reco_id: dict[tuple[str, str], str] = {}
-    for ms, (learner, _cohort) in enumerate(LEARNERS):
-        for skill in SKILLS:
+    for ms, (learner, _slot) in enumerate(LEARNERS):
+        for skill in skills:
             eid = f"reco-{run_id}-{learner}-{skill}"
             reco_id[(learner, skill)] = eid
             events.append(
@@ -121,17 +135,18 @@ def make_experiment(
                     {
                         "skill": skill,
                         "cohort": cohort_of[learner],
-                        "reco_class": RECO_CLASSES[skill],
+                        "reco_class": reco_class_of[skill],
                     },
                     at_ms=base_ms + 10 + ms * 2,
                 )
             )
 
     attached: list[dict[str, Any]] = []
-    for ms, (learner, _cohort) in enumerate(LEARNERS):
-        cohort = cohort_of[learner]
-        for skill in SKILLS:
-            verdict = VERDICTS[cohort.removeprefix(cohort_prefix)][skill]
+    for ms, (learner, slot) in enumerate(LEARNERS):
+        for index, skill in enumerate(skills):
+            dawn_acts = index == 0 and slot == "tutor-dawn"
+            dusk_acts = index == 1 and slot == "tutor-dusk"
+            verdict = "acted_on" if dawn_acts or dusk_acts else "dismissed"
             attached.append(
                 envelope(
                     f"outcome-{run_id}-{learner}-{skill}",

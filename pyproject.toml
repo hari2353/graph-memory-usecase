@@ -6,12 +6,17 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.11"
 dependencies = [
+    "a2a-sdk>=1.2.3",
+    "fastmcp>=4.1.3",
     "httpx>=0.27",
 ]
 
 [project.scripts]
 demo = "tutor_demo.demo:main"
 whole-loop = "tutor_demo.wholeloop:main"
+tutor-agent = "tutor_demo.agent_server:main"
+tutor-mcp = "tutor_demo.agent_server:mcp_main"
+conversation = "tutor_demo.conversation:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -25,6 +30,8 @@ dev = [
     "pytest>=8",
     "mypy>=1.13",
     "ruff>=0.8",
+    "starlette>=0.45",
+    "uvicorn>=0.31",
 ]
 
 [tool.pytest.ini_options]
@@ -43,7 +50,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "T20", "PL", "RUF"]
-per-file-ignores = { "tests/*" = ["PLR2004"], "src/tutor_demo/demo.py" = ["T201"], "src/tutor_demo/wholeloop.py" = ["T201"], "src/tutor_demo/deployed.py" = ["T201"] }
+per-file-ignores = { "tests/*" = ["PLR2004"], "src/tutor_demo/demo.py" = ["T201"], "src/tutor_demo/wholeloop.py" = ["T201"], "src/tutor_demo/deployed.py" = ["T201"], "src/tutor_demo/story.py" = ["T201"], "src/tutor_demo/agent_server.py" = ["T201"], "src/tutor_demo/conversation.py" = ["T201"] }
 # 6: envelope(event_id, type, user, data, at_ms, source) and the demo's phase calls
 [tool.ruff.lint.pylint]
 max-args = 6

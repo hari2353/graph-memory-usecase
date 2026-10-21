@@ -95,6 +95,56 @@ rows (edges carry skill endpoints inline), so the app provisions two tiny
 and the skill endpoint set as nodes — both derived entirely from ledger
 tables. That's serving-tier configuration, not a second ingest path.
 
+Agents: FastMCP tools + an A2A coach
+------------------------------------
+
+The run's next tier is **conversational**: the app hosts its coach agent in
+one process on port 9101 — [FastMCP][fastmcp] tools at `/mcp` and the
+[a2a-sdk][a2a] agent surface (agent card at `/.well-known/agent-card.json`,
+`SendMessage` JSON-RPC at `/`). The coach's brain reads the deployed
+platform's REST reads, narrates plans, *delivers* recommendations into the
+ledger (idempotent double-delivery is deduped by exact event id) and logs
+outcome verdicts correlated by those same reco ids.
+
+[fastmcp]: https://pypi.org/project/fastmcp/
+[a2a]: https://pypi.org/project/a2a-sdk/
+
+| Surface | Endpoint | What it gives an agent |
+|---|---|---|
+| MCP (FastMCP) | `POST /mcp` — `tools/call` | `get_recommendations`, `emit_recommendation`, `log_outcomes`, `get_skills` |
+| A2A (a2a-sdk) | `GET /.well-known/agent-card.json` + `POST /` `SendMessage` | turns narrated from ledger truth: `{"intent": "recommend"\|"outcomes", "learner": ..., "round": ...}` |
+
+`uv run conversation` then proves the point the whole loop exists for: the
+**same A2A conversation, run twice, around one effectiveness tick**:
+
+| Phase | What happens |
+|---|---|
+| 1–3 | story provenance banner → tenant + serve → story signals ingested, baseline flat |
+| 4–5 | agent hosted in-process (card + FastMCP + A2A agree); round-1 turns narrate 0.500 reads |
+| 6 | outcome turns per cohort representative → `platform loop run` → mirrored cells |
+| 7–8 | round-2 turns narrate the NEW weights; asserts narrative changed, cohorts diverged, tops > baseline |
+
+Money shot from a fresh arc (`tutor-conv-04b2f2b5`):
+
+```
+      loop[tutor-conv-04b2f2b5]: recos=8 attached=4 unattached=0 cells=4 weight_rows=4
+        cell cohort='04b2f2b5-tutor-dawn' class='gap' ...    rate=0.667 multiplier=1.167
+        cell cohort='04b2f2b5-tutor-dusk' class='gap' ...    rate=0.333 multiplier=0.833
+[7/8] round 2 - the SAME A2A conversation after the loop
+      [A2A] learner-ada-1: [round 2] learner-ada-1 (tutor-dawn cohort): your plan reads
+            0.583 - up from 0.5: your cohort's acted-on outcome was promoted by the
+            loop algebra is worth more now. ... [(scripted)]
+      [A2A] learner-bao-1: [round 2] learner-bao-1 (tutor-dusk cohort): your plan reads
+            0.583 - up from 0.5: ... graph-theory is worth more now. ...
+```
+
+The story material itself is **AI-invented when you wire an LLM in, honestly
+scripted when you don't**: with `GMP_TUTOR_LLM_BASE_URL` (+ `_MODEL`, an
+OpenAI-compatible endpoint) one call invents the run's skills, cohort names
+and coaching lines; without it the deterministic story is used and every
+banner says `story[scripted (no LLM configured)]` — never pretending. The
+platform only ever sees contract-shaped signals, whatever the story says.
+
 Quickstart
 ----------
 
@@ -114,6 +164,10 @@ uv run demo
 # 2b. broker trail + Cypher reads (needs the Pulsar container + a ClickGraph
 #     binary; the dev one is at F:\cg\target\debug\clickgraph.exe)
 uv run whole-loop
+
+# 2c. the A2A conversation arc (hosts the coach in-process on port 9101;
+#     optional: point GMP_TUTOR_LLM_BASE_URL at any OpenAI-compatible API)
+uv run conversation
 ```
 
 The demo boots its own `platform serve` on ports **8131/8132/8133**, provisions
@@ -130,8 +184,8 @@ uv run platform metering --limit 5  # the app's request ticks
 Offline tests don't need any of that:
 
 ```bash
-uv run pytest -m "not live"  # offline tier: generator determinism + client contract
-uv run pytest -m live        # live tier: the 9-phase loop + the 10-phase whole loop
+uv run pytest -m "not live"  # offline tier: generator/story/agents + client contract
+uv run pytest -m live        # live tier: the loop, the whole loop, the A2A conversation arc
 uv run ruff check . && uv run ruff format --check .
 uv run mypy --strict src tests
 ```
@@ -160,7 +214,10 @@ Design notes
   Multi-tenant isolation is the platform's job; the demo leans on it instead
   of fighting history.
 - **Deterministic signal generation** (`generator.py` has no clock/IO), so
-  the story is testable offline and the live run is reproducible.
+  the story is testable offline and the live run is reproducible. The story
+  layer (`story.py`) sits on top: the structural experiment is always
+  contract-shaped, only the names/lines are story material — LLM-invented
+  when an endpoint is configured, with the source printed either way.
 
 Environment knobs
 -----------------
@@ -174,6 +231,8 @@ Environment knobs
 | `GMP_DEMO_NODES_TABLE` / `GMP_DEMO_EDGES_TABLE` | projected graph tables the serving tier reads | gm_nodes / gm_edges |
 | `GMP_PULSAR_ADMIN_URL` / `GMP_PULSAR_CONTAINER` | dev broker (whole-loop) | 127.0.0.1:8099 / gmp-dev-pulsar |
 | `GMP_DEMO_CG_PORT` / `GMP_DEMO_CG_BINARY` | ClickGraph serving tier (whole-loop) | 7478 / F:\cg\target\debug\clickgraph.exe |
+| `GMP_TUTOR_AGENT_PORT` | the in-process agent surface (`uv run conversation`, `tutor-agent`) | 9101 |
+| `GMP_TUTOR_LLM_BASE_URL` / `_API_KEY` / `_MODEL` | optional OpenAI-compatible story maker (agents) | unset → scripted fallback |
 
 License
 -------

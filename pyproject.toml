@@ -29,6 +29,9 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "live: requires the deployed platform (ClickHouse + checkout); skips with a hint when missing",
+]
 
 [tool.mypy]
 strict = true

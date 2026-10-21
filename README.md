@@ -78,10 +78,15 @@ uv run platform metering --limit 5  # the app's request ticks
 Offline tests don't need any of that:
 
 ```bash
-uv run pytest            # generator determinism + client behavior (MockTransport)
+uv run pytest -m "not live"  # offline tier: generator determinism + client contract
+uv run pytest -m live        # live tier: the full 9-phase loop vs the deployed platform
 uv run ruff check . && uv run ruff format --check .
 uv run mypy --strict src tests
 ```
+
+The same two-tier process the platform uses: offline always; `-m live` as the
+release gate (a plain `uv run pytest` also runs the live tier and skips it
+cleanly when the platform isn't up).
 
 Design notes
 ------------

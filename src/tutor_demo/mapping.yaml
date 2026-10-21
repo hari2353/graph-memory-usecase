@@ -1,0 +1,36 @@
+# The tutor app's mapping spec — the declared contract between this app's
+# signals and the memory graph. Mirror of the platform's proven loop spec
+# (tests/e2e/test_full_loop.py): assessment and recommendation signals project
+# graph edges; outcomes are loop-only truth (ledger-side, never graphed) and
+# attach to the reco id that produced them via `correlation_id`.
+mapping_version: 1
+signals:
+  itf.skill_assessed.v1:
+    edges:
+      - kind: HAS_SKILL
+        target: "skill:{data.skill}"
+        weight: 1.0
+        half_life_days: 365
+  itf.reco.v1:
+    edges:
+      - kind: RECOMMENDED
+        target: "skill:{data.skill}"
+        weight: 0.5
+        half_life_days: 365
+  itf.reco_outcome.v1: {}
+effectiveness:
+  reco_signals: [itf.reco.v1]
+  outcome_signals: [itf.reco_outcome.v1]
+  correlation_field: "data.correlation_id"
+  cohort_field: "data.cohort"
+  class_field: "data.reco_class"
+  verdict_field: "data.verdict"
+capabilities:
+  skills:
+    relations: [HAS_SKILL]
+    top_k: 5
+    ttl_ms: 60000
+  recos:
+    relations: [RECOMMENDED]
+    top_k: 5
+    ttl_ms: 60000

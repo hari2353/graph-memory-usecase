@@ -145,6 +145,54 @@ and coaching lines; without it the deterministic story is used and every
 banner says `story[scripted (no LLM configured)]` — never pretending. The
 platform only ever sees contract-shaped signals, whatever the story says.
 
+The whole picture, as one diagram
+---------------------------------
+
+[docs/diagrams/whole-flow.html](docs/diagrams/whole-flow.html) is an
+auto-generated ([archify][archify]) dataflow diagram of the app's entire
+arc, pinned to this repository at revision `084bf06` — every node and edge
+carries the source-file citations it was drawn from. Five stages:
+
+**Story → Publish → Ledger → Memory loop → Serving + coach.**
+
+- **Story:** the run's skills, cohorts and coaching lines are story
+  material — LLM-invented when an endpoint is configured, deterministic
+  when not. Either way the generator emits contract-shaped signals.
+- **Publish:** two trails leave the app — `POST /v1/signals:batch` on the
+  deployed serve (HTTP) and the `gmp.signals.<tenant>` Pulsar topics
+  (base64 envelopes, partition-keyed by learner).
+- **Ledger:** both trails land on the same append-only ClickHouse ledger
+  (`gmp.gm_edges`) — duplicates return as acks, poison goes to a DLQ.
+- **Memory loop:** the serve's projector replays ledger truth continuously;
+  the effectiveness tick correlates outcome verdicts to reco origins and
+  writes `(kind, target, cohort)` weight rows back — round-tripping through
+  the ledger only.
+- **Serving + coach:** REST `/v1/context` + MCP tools, Cypher over
+  ClickGraph serving views, and the A2A coach whose lines are deterministic
+  narration templates reading the same ledger weights.
+
+The end-to-end walk in numbers — `uv run conversation`, one tenant, one
+loop tick between the two rounds:
+
+| Round | Cohort tops | Second reco weight | Reads |
+|---|---|---|---|
+| Round 1 — fresh tenant, flat baseline | `0.500` for both cohorts | `0.500` | REST + A2A |
+| Round 2 — after one `loop run` | `0.583` — each cohort's own acted-on reco promoted (rate 0.667 → ×1.167 mirrored) | `0.417` — the dismissed reco resting (×0.833) | REST + A2A, and the two cohorts now top *different* skills |
+
+The coach's opening line changes with the ledger: round 1 says
+*"delivered"*, round 2 says *"up from `0.5` ... promoted by the loop"* —
+and with the LLM unset every reply tags itself `(scripted)`.
+
+Sibling diagrams, one per repository, cross-linked:
+
+- Platform side (adjudication → ledger → projection → loop → channels):
+  [graph-memory-platform · platform-signals.html](https://github.com/hari2353/graph-memory-platform/blob/main/docs/diagrams/platform-signals.html)
+- Cypher serving tier (translation → record → OTLP export to Langfuse +
+  persistent schema registry):
+  [clickgraph · query-tracing.html](https://github.com/hari2353/clickgraph/blob/feat/schema-persistence/docs/diagrams/query-tracing.html)
+
+[archify]: https://github.com/tt-a1i/archify
+
 Quickstart
 ----------
 

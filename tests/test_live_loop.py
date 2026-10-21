@@ -12,14 +12,14 @@ from __future__ import annotations
 
 import pytest
 
-from tutor_demo import demo
+from tutor_demo import demo, deployed
 
 
 @pytest.mark.live
 def test_full_personalization_loop_lifts_cohort_recommendations() -> None:
     try:
-        demo._platform_dir()
-        demo._require_clickhouse()
+        deployed._platform_dir()
+        deployed._require_clickhouse()
     except SystemExit as exc:
         pytest.skip(f"deployed platform not available: {exc}")
 

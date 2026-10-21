@@ -191,6 +191,12 @@ Sibling diagrams, one per repository, cross-linked:
   persistent schema registry):
   [clickgraph · query-tracing.html](https://github.com/hari2353/clickgraph/blob/feat/schema-persistence/docs/diagrams/query-tracing.html)
 
+Each stage maps onto the two phase-tables above: **Publish** is the ingest
+trails (`whole-loop` phases 4–5, `demo` phase 4), the **Memory loop** is the
+midpoint (`whole-loop` phase 8, `demo` phase 7, `conversation` phase 6), and
+**Serving + coach** carries the Cypher/MCP tier (`whole-loop` phases 6 and
+9–10) plus the A2A arc's 8 phases.
+
 [archify]: https://github.com/tt-a1i/archify
 
 Quickstart

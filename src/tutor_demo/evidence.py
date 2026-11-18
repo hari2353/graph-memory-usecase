@@ -10,7 +10,7 @@ post-loop order (broken memory semantics), not just on missing lift.
 from __future__ import annotations
 
 
-def learner_card(
+def learner_card(  # noqa: PLR0913 - one evidence card, seven named inputs
     learner: str,
     cohort: str,
     *,
@@ -18,7 +18,7 @@ def learner_card(
     midstory_top: str,
     midstory_as_of: str,
     after_top: str,
-    loop: dict[str, int],
+    loop: dict[str, object],
 ) -> str:
     """One learner's before / mid-story / after-loop plan, with loop truth."""
     counters = ", ".join(f"{key}={loop[key]}" for key in sorted(loop))

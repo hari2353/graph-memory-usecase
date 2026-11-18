@@ -28,7 +28,6 @@ import time
 import uuid
 from pathlib import Path
 
-from .evidence import learner_card, run_gate
 from .deployed import (
     TENANT_PREFIX,
     _client,
@@ -44,6 +43,7 @@ from .deployed import (
     _wait_for_lift,
     cohort_representatives,
 )
+from .evidence import learner_card, run_gate
 from .generator import INGEST_TYPE_RECO, LEARNERS, Experiment, make_experiment
 from .platform_client import PlatformClient
 
@@ -86,11 +86,12 @@ def _correlate_and_loop(client: PlatformClient, experiment: Experiment, platform
     print("      " + report.strip().replace("\n", "\n      "))
 
 
-def _lift(
+def _lift(  # noqa: PLR0913 - one phase, seven named inputs
     client: PlatformClient,
     baseline: dict[str, str],
     dawn_learner: str,
     dusk_learner: str,
+    *,
     dawn_cohort: str,
     dusk_cohort: str,
     mid_instant: str,
@@ -132,7 +133,7 @@ def _lift(
     return after, midstory
 
 
-def _proofs(client: PlatformClient, dawn_learner: str) -> dict[str, int]:
+def _proofs(client: PlatformClient, dawn_learner: str) -> dict[str, object]:
     """Phase 9: MCP provenance + the loop's own report from ledger truth."""
     print("[9/9] why this reco? MCP provenance + the loop's own report")
     why = client.mcp_call("explain_context", {"user": dawn_learner, "capability": "recos"})
@@ -145,14 +146,14 @@ def _proofs(client: PlatformClient, dawn_learner: str) -> dict[str, int]:
     status = client.mcp_call("get_effectiveness", {})
     known = {key: status.get(key) for key in ("tenant", "reco_delivered", "attached", "unattached")}
     print(f"      get_effectiveness: {json.dumps(known)}")
+    return known
 
 
 def _mid_instant(experiment: Experiment) -> str:
     """The instant every baseline fact existed and no outcome had yet: the
     mid-story as_of for the evidence phase (the events' own timestamps)."""
     return max(
-        str(event["time"]) for event in experiment.events
-        if event["type"] == INGEST_TYPE_RECO
+        str(event["time"]) for event in experiment.events if event["type"] == INGEST_TYPE_RECO
     )
 
 
@@ -187,7 +188,13 @@ def main() -> int:
         baseline = _baseline(client, experiment, learners)
         _correlate_and_loop(client, experiment, platform_dir)
         after, midstory = _lift(
-            client, baseline, dawn_learner, dusk_learner, dawn_cohort, dusk_cohort, mid_instant
+            client,
+            baseline,
+            dawn_learner,
+            dusk_learner,
+            dawn_cohort=dawn_cohort,
+            dusk_cohort=dusk_cohort,
+            mid_instant=mid_instant,
         )
         loop = _proofs(client, dawn_learner)
         if report_path:

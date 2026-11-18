@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import httpx
 
+from tutor_demo.demo import _proofs
 from tutor_demo.evidence import learner_card, run_gate
 from tutor_demo.platform_client import ClientConfig, PlatformClient
 
@@ -29,7 +30,11 @@ def test_context_read_threads_as_of_query_param() -> None:
         captured["as_of"] = request.url.params.get("as_of")
         return httpx.Response(
             200,
-            json={"payload": {"items": [{"kind": "RECOMMENDED", "target": "skill:algebra", "score": 0.5}]}},
+            json={
+                "payload": {
+                    "items": [{"kind": "RECOMMENDED", "target": "skill:algebra", "score": 0.5}]
+                }
+            },
         )
 
     client = _client(handler)
@@ -54,12 +59,12 @@ def test_learner_card_is_honest_bounded_and_dumps_no_events() -> None:
         loop={"attached": 4, "unattached": 0},
     )
     assert "learner-ada-1" in card and "run-abc-tutor-dawn" in card
-    assert "skill:algebra" in card           # what they saw first
-    assert "skill:graph-theory" in card      # what the loop promoted
+    assert "skill:algebra" in card  # what they saw first
+    assert "skill:graph-theory" in card  # what the loop promoted
     assert "2026-10-21T09:00:00.000Z" in card  # the mid-story instant, named
-    assert "attached=4" in card              # loop truth, not vibes
-    assert len(card) < 2_000                 # bounded by construction
-    assert "itf." not in card                # raw signal types never dumped
+    assert "attached=4" in card  # loop truth, not vibes
+    assert len(card) < 2_000  # bounded by construction
+    assert "itf." not in card  # raw signal types never dumped
 
 
 def test_run_gate_flags_a_midstory_showing_postloop_order() -> None:
@@ -69,3 +74,19 @@ def test_run_gate_flags_a_midstory_showing_postloop_order() -> None:
     # broken memory semantics: the historical slice shows the post-loop order
     reasons = run_gate(baseline, {"dawn": "skill:graph-theory", "dusk": "skill:algebra"})
     assert len(reasons) == 1 and "dawn" in reasons[0]
+
+
+def test_proofs_returns_loop_counters_used_by_the_evidence_cards() -> None:
+    class StubClient:
+        def mcp_call(self, tool: str, arguments: dict[str, object]) -> dict[str, object]:
+            if tool == "explain_context":
+                return {"observations": [{"kind": "RECOMMENDED", "target": "skill:algebra"}]}
+            return {"tenant": "t1", "reco_delivered": 2, "attached": 1, "unattached": 1}
+
+    counters = _proofs(StubClient(), "learner-ada-1")  # type: ignore[arg-type]
+    assert counters == {
+        "tenant": "t1",
+        "reco_delivered": 2,
+        "attached": 1,
+        "unattached": 1,
+    }

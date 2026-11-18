@@ -213,7 +213,7 @@ def _start_clickgraph() -> subprocess.Popen[bytes]:
         env=env,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
     )
     deadline = time.monotonic() + 30.0
     while time.monotonic() < deadline:

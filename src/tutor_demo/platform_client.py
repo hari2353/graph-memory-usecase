@@ -61,10 +61,18 @@ class PlatformClient:
         return {"accepted": accepted, "duplicates": duplicates, "rejected": rejections}
 
     # -- context reads ------------------------------------------------------
-    def context(self, user: str, capability: str) -> list[tuple[str, float]]:
-        """Rendered items as (target, score) — the app's personalized reads."""
+    def context(
+        self, user: str, capability: str, *, as_of: str | None = None
+    ) -> list[tuple[str, float]]:
+        """Rendered items as (target, score) — the app's personalized reads.
+
+        ``as_of`` (ISO-8601) makes it a point-in-time read: the memory as it
+        looked at that instant — the platform's bi-temporal contract, used
+        by the app to show the mid-story plan next to the divergent now."""
         response = self._client.get(
-            f"{self._rest}/v1/context/{user}/{capability}", headers=self._headers
+            f"{self._rest}/v1/context/{user}/{capability}",
+            headers=self._headers,
+            params={"as_of": as_of} if as_of else None,
         )
         response.raise_for_status()
         payload = cast_dict(response.json())

@@ -24,7 +24,13 @@ imported):
 | 6 | emits outcomes correlated by the exact reco event ids | outcomes ride the ledger, not the graph |
 | 7 | — | `platform loop run`: effectiveness tick → `(kind, target, cohort)` weight rows |
 | 8 | reads again | **cohort orders diverge** — each cohort's acted-on reco is promoted |
+| 8b | re-reads *mid-story* (`as_of`) | the plan as the learner saw it **then** — later facts absent, later forgets not applied; the run fails loudly if the historical slice already shows the post-loop order |
 | 9 | asks *why* | MCP `explain_context` (provenance) + `get_effectiveness` (loop report) |
+
+Run with `--report PATH` and phase 9 also writes **learner evidence cards** —
+bounded Markdown per representative learner: baseline plan, mid-story plan
+(named instant), after-loop plan, and the loop's attached/unattached truth —
+the mastery-proof artifact, reproducible per run.
 
 The last printouts are the money shots:
 

@@ -28,6 +28,7 @@ import time
 import uuid
 from pathlib import Path
 
+from .evidence import learner_card, run_gate
 from .deployed import (
     TENANT_PREFIX,
     _client,
@@ -43,7 +44,7 @@ from .deployed import (
     _wait_for_lift,
     cohort_representatives,
 )
-from .generator import LEARNERS, Experiment, make_experiment
+from .generator import INGEST_TYPE_RECO, LEARNERS, Experiment, make_experiment
 from .platform_client import PlatformClient
 
 
@@ -92,8 +93,10 @@ def _lift(
     dusk_learner: str,
     dawn_cohort: str,
     dusk_cohort: str,
-) -> None:
-    """Re-read, show that the cohorts' orders visibly diverged."""
+    mid_instant: str,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Re-read, show that the cohorts' orders visibly diverged, and prove the
+    mid-story memory still reads the baseline order (point-in-time honesty)."""
     print("[7/9] re-reading personalized recos (loop carried the multipliers)")
     after = _wait_for_lift(client, dawn_learner, dusk_learner)
     _print_table("after the loop", after)
@@ -112,8 +115,24 @@ def _lift(
     print(f"      {dusk_cohort} -> {dusk_top!r}   (their acted_on reco promoted)")
     print("      the app wrote none of this logic: emit, read, correlate, loop.")
 
+    print(f"[8b/9] the plan as the learner saw it mid-story (as_of {mid_instant})")
+    midstory = {
+        learner: (items[0][0] if items else "")
+        for learner in (dawn_learner, dusk_learner)
+        for items in (client.context(learner, "recos", as_of=mid_instant),)
+    }
+    for learner, top in midstory.items():
+        print(f"      {learner} mid-story top: {top!r}")
+    reasons = run_gate(baseline, midstory)
+    if reasons:
+        for reason in reasons:
+            print(f"      FAILED: {reason}")
+        raise SystemExit(1)
+    print("      mid-story reads still show the baseline order — memory is honest.")
+    return after, midstory
 
-def _proofs(client: PlatformClient, dawn_learner: str) -> None:
+
+def _proofs(client: PlatformClient, dawn_learner: str) -> dict[str, int]:
     """Phase 9: MCP provenance + the loop's own report from ledger truth."""
     print("[9/9] why this reco? MCP provenance + the loop's own report")
     why = client.mcp_call("explain_context", {"user": dawn_learner, "capability": "recos"})
@@ -128,7 +147,19 @@ def _proofs(client: PlatformClient, dawn_learner: str) -> None:
     print(f"      get_effectiveness: {json.dumps(known)}")
 
 
+def _mid_instant(experiment: Experiment) -> str:
+    """The instant every baseline fact existed and no outcome had yet: the
+    mid-story as_of for the evidence phase (the events' own timestamps)."""
+    return max(
+        str(event["time"]) for event in experiment.events
+        if event["type"] == INGEST_TYPE_RECO
+    )
+
+
 def main() -> int:
+    report_path = None
+    if "--report" in sys.argv:
+        report_path = sys.argv[sys.argv.index("--report") + 1]
     platform_dir = _platform_dir()
     _require_clickhouse()
     _free_demo_ports()
@@ -150,12 +181,30 @@ def main() -> int:
 
     print("[3/9] booting the deployed platform serve (this app's mapping spec)")
     serve = _start_serve(platform_dir, tenant)
+    mid_instant = _mid_instant(experiment)
     try:
         client = _client()
         baseline = _baseline(client, experiment, learners)
         _correlate_and_loop(client, experiment, platform_dir)
-        _lift(client, baseline, dawn_learner, dusk_learner, dawn_cohort, dusk_cohort)
-        _proofs(client, dawn_learner)
+        after, midstory = _lift(
+            client, baseline, dawn_learner, dusk_learner, dawn_cohort, dusk_cohort, mid_instant
+        )
+        loop = _proofs(client, dawn_learner)
+        if report_path:
+            cards = "\n\n".join(
+                learner_card(
+                    learner,
+                    dawn_cohort if learner == dawn_learner else dusk_cohort,
+                    baseline_top=baseline[learner],
+                    midstory_top=midstory[learner],
+                    midstory_as_of=mid_instant,
+                    after_top=after[learner],
+                    loop=loop,
+                )
+                for learner in (dawn_learner, dusk_learner)
+            )
+            Path(report_path).write_text(cards + "\n", encoding="utf-8")
+            print(f"\nlearner evidence cards written: {report_path}")
         return 0
     finally:
         _kill_tree(serve)
